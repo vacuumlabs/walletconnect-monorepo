@@ -299,6 +299,11 @@ export class UniversalProvider implements IUniversalProvider {
             namespace: combinedNamespace,
           });
           break;
+        case "torii":
+          this.rpcProviders[namespace] = new Eip155Provider({
+            namespace: combinedNamespace,
+          });
+          break;
         case "solana":
           this.rpcProviders[namespace] = new SolanaProvider({
             namespace: combinedNamespace,

@@ -100,8 +100,10 @@ export function getRpcUrl(chainId: string, rpc: EthereumRpcConfig): string | und
   return rpcUrl;
 }
 
+// @ts-ignore
 export function getEthereumChainId(chains: string[]): number {
-  return Number(chains[0].split(":")[1]);
+  // TMP: Uncomment when supporting mainnet,
+  return 5; // Number(chains[0].split(":")[1]);
 }
 
 export function toHexChainId(chainId: number): string {
@@ -229,7 +231,8 @@ export class EthereumProvider implements IEthereumProvider {
   public namespace = "eip155";
   public accounts: string[] = [];
   public signer: InstanceType<typeof UniversalProvider>;
-  public chainId = 1;
+  // TMP: Change to 1 when supporting mainnet
+  public chainId = 5;
   public modal?: WalletConnectModal;
 
   protected rpc: EthereumRpcConfig;
@@ -248,6 +251,10 @@ export class EthereumProvider implements IEthereumProvider {
   }
 
   public async request<T = unknown>(args: RequestArguments): Promise<T> {
+    // Note that this is the method that is actually called on Uniswap
+    if (args.method.startsWith("torii")) {
+      return await this.signer.request(args, "torii:testnet");
+    }
     return await this.signer.request(args, this.formatChainId(this.chainId));
   }
 
@@ -255,7 +262,11 @@ export class EthereumProvider implements IEthereumProvider {
     args: RequestArguments,
     callback: (error: Error | null, response: any) => void,
   ): void {
-    this.signer.sendAsync(args, callback, this.formatChainId(this.chainId));
+    if (args.method.startsWith("torii")) {
+      this.signer.sendAsync(args, callback, "torii:testnet");
+    } else {
+      this.signer.sendAsync(args, callback, this.formatChainId(this.chainId));
+    }
   }
 
   get connected(): boolean {
@@ -280,6 +291,7 @@ export class EthereumProvider implements IEthereumProvider {
     }
 
     this.loadConnectOpts(opts);
+    // @ts-ignore
     const { required, optional } = buildNamespaces(this.rpc);
     try {
       const session = await new Promise<SessionTypes.Struct | undefined>(
@@ -296,10 +308,25 @@ export class EthereumProvider implements IEthereumProvider {
           await this.signer
             .connect({
               namespaces: {
-                ...(required && {
+                // TMP: Uncomment when supporting mainnet
+                /*...(required && {
                   [this.namespace]: required,
-                }),
+                }),*/
+                eip155: {
+                  chains: ["eip155:5"],
+                  methods: ["eth_sendTransaction", "personal_sign"],
+                  events: ["chainChanged", "accountsChanged"],
+                  rpcMap: {
+                    5: "https://goerli.infura.io/v3/4bf032f2d38a4ed6bb975b80d6340847",
+                  },
+                },
+                torii: {
+                  chains: ["torii:testnet"],
+                  events: [],
+                  methods: ["torii_getData", "torii_setData", "torii_credential"],
+                },
               },
+
               ...(optional && {
                 optionalNamespaces: {
                   [this.namespace]: optional,
@@ -308,9 +335,13 @@ export class EthereumProvider implements IEthereumProvider {
               pairingTopic: opts?.pairingTopic,
             })
             .then((session) => {
+              // eslint-disable-next-line
+              console.log("SESSION established", session);
               resolve(session);
             })
             .catch((error: Error) => {
+              // eslint-disable-next-line
+              console.log("SESSION error", error);
               reject(new Error(error.message));
             });
         },
@@ -441,18 +472,23 @@ export class EthereumProvider implements IEthereumProvider {
     const compatible = chains.filter((x) => this.isCompatibleChainId(x));
     const chainIds = compatible.map((c) => this.parseChainId(c));
     if (chainIds.length) {
-      this.chainId = chainIds[0];
+      // TMP: Uncomment when supporting mainnet
+      this.chainId = 5; // chainIds[0];
       this.events.emit("chainChanged", toHexChainId(this.chainId));
       this.persist();
     }
   }
 
+  // @ts-ignore
   protected setChainId(chain: string) {
-    if (this.isCompatibleChainId(chain)) {
+    this.chainId = 5;
+    this.switchEthereumChain(5);
+    // TMP: Uncomment when supporting mainnet, drop the above lines
+    /*if (this.isCompatibleChainId(chain)) {
       const chainId = this.parseChainId(chain);
       this.chainId = chainId;
       this.switchEthereumChain(chainId);
-    }
+    }*/
   }
 
   protected parseAccountId(account: string): { chainId: string; address: string } {
@@ -581,7 +617,8 @@ export class EthereumProvider implements IEthereumProvider {
   }
 
   protected reset() {
-    this.chainId = 1;
+    // TMP revert to 1 when supporting mainnet
+    this.chainId = 5;
     this.accounts = [];
   }
 
